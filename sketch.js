@@ -2,13 +2,18 @@ var interval;
 var rootPoint = new Point(500,500);
 var branchArrays = {};
 var branchOptions = {
-    rootBranchLength: 100,
-    growFactor: 600, // divided by 1000
+    rootBranchLength: 150,
+    growFactor: 700, // divided by 1000
     newBranchMaxAngle: 60, // in deg
     newBranchesEveryStep: 3,
     branchLayersCount: 9,
     randomAngle: true,
     layerColors: [],
+
+    branchRandomLength: true,
+    branchRandomFactor: 0.5,
+
+    branchAngleRandomness: -0.5,
 }
 
 var colorArray = ['#FF6633', '#FFB399', '#FF33FF', '#FFFF99', '#00B3E6', 
@@ -38,16 +43,9 @@ function setup() {
 }
 
 function draw() {
-    // slider labels
-    stroke(100);
-    text(`Number of branch layers: ${sliderBranchLayersCount.value()}`, sliderBranchLayersCount.x * 2 + sliderBranchLayersCount.width,
-         sliderBranchLayersCount.y + 10);
-    text(`Angle: ${sliderAngle.value()} deg`, sliderAngle.x * 2 + sliderAngle.width, sliderAngle.y + 10);
-    text(`New branches every layer: ${sliderNewBranchesEveryStep.value()}`,
-         sliderNewBranchesEveryStep.x * 2 + sliderNewBranchesEveryStep.width, sliderNewBranchesEveryStep.y + 10);
-    text(`Grow factor: ${sliderGrowFactor.value()/1000}`, sliderGrowFactor.x * 2 + sliderGrowFactor.width, sliderGrowFactor.y + 10);
+    drawTextLabels();
 
-    // draw tree
+    // draw trees
     for (var branches in branchArrays) {
         branchArrays[branches].forEach(branch => {
             stroke(branchOptions.layerColors[branches]);
@@ -59,7 +57,7 @@ function draw() {
 function pickRandomColors() {
     branchOptions.layerColors = [];
     for (let index = 0; index < 11; index++) {
-        branchOptions.layerColors.push(colorArray[Math.floor(Math.random() * colorArray.length)]);        
+        branchOptions.layerColors.push(random(colorArray));        
     }
 }
 
@@ -84,13 +82,30 @@ function createUIElements() {
     sliderGrowFactor.style('width', '200px');
     sliderGrowFactor.changed(nextTreeFromSliderParams);
 
+    sliderBranchAngleRandomness = createSlider(-10, 10, branchOptions.branchAngleRandomness);
+    sliderBranchAngleRandomness.position(0, 120);
+    sliderBranchAngleRandomness.style('width', '200px');
+    sliderBranchAngleRandomness.changed(nextTreeFromSliderParams);
+
     checkboxAutoChange = createCheckbox('auto change every 2s', false);
-    checkboxAutoChange.position(0, 120);
+    checkboxAutoChange.position(0, 150);
     checkboxAutoChange.changed(checkedAutoChange);
 
     checkboxRandomAngle = createCheckbox('random angle', branchOptions.randomAngle);
-    checkboxRandomAngle.position(0, 150);
+    checkboxRandomAngle.position(0, 180);
     checkboxRandomAngle.changed(checkedRandomAngle);
+}
+
+function drawTextLabels() {
+    stroke(100);
+    text(`Number of branch layers: ${sliderBranchLayersCount.value()}`, sliderBranchLayersCount.x * 2 + sliderBranchLayersCount.width,
+         sliderBranchLayersCount.y + 10);
+    text(`Angle: ${sliderAngle.value()} deg`, sliderAngle.x * 2 + sliderAngle.width, sliderAngle.y + 10);
+    text(`New branches every layer: ${sliderNewBranchesEveryStep.value()}`,
+         sliderNewBranchesEveryStep.x * 2 + sliderNewBranchesEveryStep.width, sliderNewBranchesEveryStep.y + 10);
+    text(`Grow factor: ${sliderGrowFactor.value()/1000}`, sliderGrowFactor.x * 2 + sliderGrowFactor.width, sliderGrowFactor.y + 10);
+    text(`Branch angle randomness: ${sliderBranchAngleRandomness.value()/50}`,
+        sliderBranchAngleRandomness.x * 2 + sliderBranchAngleRandomness.width, sliderBranchAngleRandomness.y + 10);
 }
 
 function checkedAutoChange() {
@@ -104,7 +119,14 @@ function checkedAutoChange() {
 }
 
 function checkedRandomAngle() {
-    branchOptions.randomAngle = this.checked();
+    if (this.checked()) {
+        branchOptions.randomAngle = true;
+        sliderNewBranchesEveryStep.show();
+    } else {
+        branchOptions.randomAngle = false;
+        sliderNewBranchesEveryStep.value(2);
+        sliderNewBranchesEveryStep.hide();
+    }
     nextTreeFromSliderParams();
 }
 
@@ -114,6 +136,7 @@ function nextTreeFromSliderParams() {
     branchOptions.newBranchMaxAngle = (sliderAngle.value() / 180) * Math.PI;
     branchOptions.newBranchesEveryStep = sliderNewBranchesEveryStep.value();
     branchOptions.growFactor = sliderGrowFactor.value()/1000;
+    branchOptions.branchAngleRandomness = sliderBranchAngleRandomness.value()/50;
     calculateBranches(branchOptions);
 }
 
@@ -149,12 +172,15 @@ function calculateBranches(b) {
                 if(b.randomAngle)
                     randomAngle =  2 * Math.random() * b.newBranchMaxAngle - b.newBranchMaxAngle;
                 else
-                    randomAngle = Math.sign(Math.random() - 0.5) * b.newBranchMaxAngle;
+                    randomAngle = i%2 == 0 ? b.newBranchMaxAngle : -b.newBranchMaxAngle;
 
-                var new_angle = last_angle + randomAngle;
+                var new_length_r = b.branchRandomLength ?
+                    new_length * (1.1 - b.branchRandomFactor * (1 -  Math.random())) : new_length;  
+
+                var new_angle = last_angle + randomAngle + Math.random() * b.branchAngleRandomness;
                 var new_startPoint = new Point(last_endPoint.x, last_endPoint.y);
-                var new_endPoint = new Point(last_endPoint.x + new_length * Math.cos(new_angle),
-                    last_endPoint.y - new_length * Math.sin(new_angle));
+                var new_endPoint = new Point(last_endPoint.x + new_length_r * Math.cos(new_angle),
+                    last_endPoint.y - new_length_r * Math.sin(new_angle));
 
                 branchArrays[currentBranchLayer].push(new Branch(new_startPoint, new_endPoint));
             }
